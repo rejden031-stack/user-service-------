@@ -11,5 +11,6 @@ func main() {
 	http.HandleFunc("/user", handler.GetUser)
 
 	log.Println("Server started on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(":8080", nil)) //прикол
+	log.Println("test change")
 }
