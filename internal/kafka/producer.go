@@ -26,7 +26,9 @@ func NewProducer(brokerAddr string, topic string) *Producer {
 	return &Producer{writer: w}
 }
 
-func (p *Producer) PublishUserCreated(ctx context.Context, event UserCreatedEvent) error {
+func (p *Producer) PublishUserCreated(ctx context.Context, id int, name string) error {
+	event := UserCreatedEvent{ID: id, Name: name}
+
 	data, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("failed to marshal event: %w", err)

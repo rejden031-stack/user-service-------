@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -11,7 +12,7 @@ import (
 func NewPostgresPool(ctx context.Context) (*pgxpool.Pool, error) {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
-		dsn = "postgres://postgres:12345678@localhost:5432/user_service?sslmode=disable"
+		log.Fatal("DATABASE_URL environment variable is required")
 	}
 
 	pool, err := pgxpool.New(ctx, dsn)

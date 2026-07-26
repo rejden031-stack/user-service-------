@@ -2,56 +2,53 @@ package service
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"log"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"user-service/internal/entity"
 )
 
-type User struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
+type UserRepository interface {
+	GetByID(ctx context.Context, id int) (entity.User, error)
+	GetAll(ctx context.Context) ([]entity.User, error)
+	Create(ctx context.Context, name string) (entity.User, error)
+}
+
+type EventPublisher interface {
+	PublishUserCreated(ctx context.Context, id int, name string) error
 }
 
 type UserService struct {
-	pool *pgxpool.Pool
+	repo      UserRepository
+	publisher EventPublisher
 }
 
-func NewUserService(pool *pgxpool.Pool) *UserService {
-	return &UserService{pool: pool}
+func NewUserService(repo UserRepository, publisher EventPublisher) *UserService {
+	return &UserService{repo: repo, publisher: publisher}
 }
 
-func (s *UserService) GetUser(ctx context.Context, id int) (User, error) {
-	var user User
-	err := s.pool.QueryRow(ctx, "SELECT id, name FROM users WHERE id = $1", id).Scan(&user.ID, &user.Name)
+func (s *UserService) GetUser(ctx context.Context, id int) (entity.User, error) {
+	return s.repo.GetByID(ctx, id)
+}
+
+func (s *UserService) GetAllUsers(ctx context.Context) ([]entity.User, error) {
+	return s.repo.GetAll(ctx)
+}
+
+func (s *UserService) CreateUser(ctx context.Context, name string) (entity.User, error) {
+	if name == "" {
+		return entity.User{}, errors.New("name is required")
+	}
+
+	user, err := s.repo.Create(ctx, name)
 	if err != nil {
-		return User{}, fmt.Errorf("failed to get user: %w", err)
+		return entity.User{}, err
 	}
-	return user, nil
-}
 
-func (s *UserService) GetAllUsers(ctx context.Context) ([]User, error) {
-	rows, err := s.pool.Query(ctx, "SELECT id, name FROM users")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get users: %w", err)
-	}
-	defer rows.Close()
 
-	var users []User
-	for rows.Next() {
-		var user User
-		if err := rows.Scan(&user.ID, &user.Name); err != nil {
-			return nil, fmt.Errorf("failed to scan user: %w", err)
-		}
-		users = append(users, user)
+	if err := s.publisher.PublishUserCreated(ctx, user.ID, user.Name); err != nil {
+		log.Printf("failed to publish user created event: %v", err)
 	}
-	return users, nil
-}
 
-func (s *UserService) CreateUser(ctx context.Context, name string) (User, error) {
-	var user User
-	err := s.pool.QueryRow(ctx, "INSERT INTO users (name) VALUES ($1) RETURNING id, name", name).Scan(&user.ID, &user.Name)
-	if err != nil {
-		return User{}, fmt.Errorf("failed to create user: %w", err)
-	}
 	return user, nil
 }
