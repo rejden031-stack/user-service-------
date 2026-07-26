@@ -1,4 +1,4 @@
-package controller
+package transport
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 
 	"user-service/internal/entity"
 )
-
 
 type UserService interface {
 	GetUser(ctx context.Context, id int) (entity.User, error)
@@ -23,7 +22,6 @@ type Handler struct {
 func NewHandler(userService UserService) *Handler {
 	return &Handler{userService: userService}
 }
-
 
 type userResponse struct {
 	ID   int    `json:"id"`

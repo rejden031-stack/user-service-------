@@ -4,43 +4,42 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"user-service/internal/controller"
+	"user-service/internal/config"
 	"user-service/internal/db"
 	"user-service/internal/kafka"
 	"user-service/internal/metrics"
 	"user-service/internal/repo/postgres"
 	"user-service/internal/service"
+	transport "user-service/internal/transport/http"
 )
 
 func main() {
 	ctx := context.Background()
 
-	brokerAddr := os.Getenv("KAFKA_BROKER_ADDR")
-	if brokerAddr == ""{
-		brokerAddr = "localhost:9092"
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("failed to load config: %v", err)
 	}
 
-	pool, err := db.NewPostgresPool(ctx)
+	pool, err := db.NewPostgresPool(ctx, cfg.Database.DSN)
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
 	defer pool.Close()
 
-	producer := kafka.NewProducer(brokerAddr, "user-events")
+	producer := kafka.NewProducer(cfg.Kafka.BrokerAddr, cfg.Kafka.Topic)
 	defer producer.Close()
 
-	consumer := kafka.NewConsumer(brokerAddr, "user-events", "user-service-group")
+	consumer := kafka.NewConsumer(cfg.Kafka.BrokerAddr, cfg.Kafka.Topic, cfg.Kafka.ConsumerGroup)
 	go consumer.Start(ctx)
 	defer consumer.Close()
 
-	
 	userRepo := postgres.NewUserRepo(pool)
 	userService := service.NewUserService(userRepo, producer)
-	handler := controller.NewHandler(userService)
+	handler := transport.NewHandler(userService)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/user", metrics.Middleware(handler.GetUser))
