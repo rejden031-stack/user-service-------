@@ -3,9 +3,9 @@ package config
 import "github.com/caarlos0/env/v10"
 
 type Config struct {
-	Database   Database
-	HTTPServer HTTPServer
-	Kafka      Kafka
+	Database
+	HTTPServer
+	Kafka
 }
 
 type Database struct {
