@@ -1,21 +1,35 @@
-package http
+package transport
 
 import (
+	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 	"strconv"
-	"user-service/internal/kafka"
-	"user-service/internal/service"
+
+	"user-service/internal/entity"
 )
 
-type Handler struct {
-	userService *service.UserService
-	producer    *kafka.Producer
+type UserService interface {
+	GetUser(ctx context.Context, id int) (entity.User, error)
+	GetAllUsers(ctx context.Context) ([]entity.User, error)
+	CreateUser(ctx context.Context, name string) (entity.User, error)
 }
 
-func NewHandler(userService *service.UserService, producer *kafka.Producer) *Handler {
-	return &Handler{userService: userService, producer: producer}
+type Handler struct {
+	userService UserService
+}
+
+func NewHandler(userService UserService) *Handler {
+	return &Handler{userService: userService}
+}
+
+type userResponse struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+func toResponse(u entity.User) userResponse {
+	return userResponse{ID: u.ID, Name: u.Name}
 }
 
 func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +52,7 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user)
+	json.NewEncoder(w).Encode(toResponse(user))
 }
 
 func (h *Handler) GetUsers(w http.ResponseWriter, r *http.Request) {
@@ -48,8 +62,13 @@ func (h *Handler) GetUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	resp := make([]userResponse, 0, len(users))
+	for _, u := range users {
+		resp = append(resp, toResponse(u))
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(users)
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
@@ -67,12 +86,7 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	event := kafka.UserCreatedEvent{ID: user.ID, Name: user.Name}
-	if err := h.producer.PublishUserCreated(r.Context(), event); err != nil {
-		log.Printf("failed to publish user created event: %v", err)
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(user)
+	json.NewEncoder(w).Encode(toResponse(user))
 }
